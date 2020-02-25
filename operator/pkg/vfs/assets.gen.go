@@ -6203,21 +6203,30 @@ subsets:
 - addresses:
   - ip: {{ .Values.global.remotePilotAddress }}
   ports:
-  - port: 15003
-    name: http-old-discovery # mTLS or non-mTLS depending on auth setting
-  - port: 15005
-    name: https-discovery # always mTLS
-  - port: 15007
-    name: http-discovery # always plain-text
   - port: 15010
     name: grpc-xds # direct
   - port: 15011
     name: https-xds # mTLS or non-mTLS depending on auth setting
   - port: 8080
     name: http-legacy-discovery # direct
+  - port: 15012
+    name: http-istiod
   - port: 15014
     name: http-monitoring
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: istiod
+  namespace: {{ .Release.Namespace }}
+subsets:
+- addresses:
+  - ip: {{ .Values.global.remotePilotAddress }}
+  ports:
+  - port: 15012
+    name: http-istiod
 {{- end }}
+
 {{- if and .Values.global.remotePolicyAddress .Values.global.createRemoteSvcEndpoints }}
 ---
 apiVersion: v1
@@ -6396,21 +6405,27 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - port: 15003
-    name: http-old-discovery # mTLS or non-mTLS depending on auth setting
-  - port: 15005
-    name: https-discovery # always mTLS
-  - port: 15007
-    name: http-discovery # always plain-text
   - port: 15010
     name: grpc-xds # direct
   - port: 15011
     name: https-xds # mTLS or non-mTLS depending on auth setting
   - port: 8080
     name: http-legacy-discovery # direct
+  - port: 15012
+    name: http-istiod    
   - port: 15014
     name: http-monitoring
   clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: istiod
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - port: 15012
+    name: http-istiod
 ---
 {{- end }}
 {{- if and .Values.global.remotePolicyAddress .Values.global.createRemoteSvcEndpoints }}
@@ -39392,7 +39407,7 @@ var _examplesMulticlusterValuesIstioMulticlusterGatewaysYaml = []byte(`apiVersio
 kind: IstioOperator
 spec:
   addonComponents:
-    coreDNS:
+    istiocoredns:
       enabled: true
 
   components:
@@ -40181,6 +40196,20 @@ spec:
   addonComponents:
     prometheus:
       enabled: true
+      k8s:
+        replicaCount: 1
+    kiali:
+      enabled: false
+      k8s:
+        replicaCount: 1
+    grafana:
+      enabled: false
+      k8s:
+        replicaCount: 1
+    tracing:
+      enabled: false
+    istiocoredns:
+      enabled: false
 
   # Global values passed through to helm global.yaml.
   values:
@@ -40528,8 +40557,6 @@ spec:
         autoInject: true
 
     prometheus:
-      enabled: true
-      replicaCount: 1
       hub: docker.io/prom
       tag: v2.15.1
       retention: 6h
@@ -40550,8 +40577,6 @@ spec:
       provisionPrometheusCert: true
 
     grafana:
-      enabled: false
-      replicaCount: 1
       image:
         repository: grafana/grafana
         tag: 6.5.2
@@ -40600,7 +40625,6 @@ spec:
       envSecrets: {}
 
     tracing:
-      enabled: false
       provider: jaeger
       nodeSelector: {}
       podAntiAffinityLabelSelector: []
@@ -40654,14 +40678,11 @@ spec:
         annotations:
         tls:
     istiocoredns:
-      enabled: false
       coreDNSImage: coredns/coredns
       coreDNSTag: 1.6.2
       coreDNSPluginImage: istio/coredns-plugin:0.2-istio-1.1
 
     kiali:
-      enabled: false
-      replicaCount: 1
       hub: quay.io/kiali
       tag: v1.9
       contextPath: /kiali
@@ -41775,7 +41796,7 @@ componentMaps:
     ContainerName:        "install-cni"
     HelmSubdir:           "istio-cni"
     ToHelmValuesTreeRoot: "cni"
-  CoreDNS:
+  Istiocoredns:
     ResourceType:         "Deployment"
     ResourceName:         "istiocoredns"
     ContainerName:        "coredns"
